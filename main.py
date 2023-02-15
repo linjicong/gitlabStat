@@ -2,11 +2,16 @@
 
 import gitlab
 import pandas as pd
+from collections import defaultdict
+import os
 
-gl = gitlab.Gitlab('https://gitlab.xxx.com', private_token='xxx', timeout=50, api_version='4')
+url=os.getenv("url")
+private_token=os.getenv("private_token")
 
-start_time = '2022-02-19T00:00:00Z'
-end_time = '2022-03-20T23:59:00Z'
+gl = gitlab.Gitlab(url=url, private_token=private_token, timeout=50, api_version='4')
+
+start_time = '2022-12-19T00:00:00Z'
+end_time = '2023-01-20T23:59:00Z'
 
 
 def getLines(c, exts):
@@ -62,6 +67,67 @@ def get_gitlab():
 
     return list2
 
+def get_user():
+    users = gl.users.list(all=True)
+    result = []
+    for user in users:
+        u = {}
+        u['id'] = user.id
+        u['name'] = user.name
+        result.append(u)
+    return result
+
+def get_projects():
+    projects = gl.projects.list(all=True)
+    result=[]
+    for project in projects:
+        pro = {}
+        pro['id']=project.id
+        pro['name']=project.name
+        pro['description']=project.description
+        result.append(pro)
+    return result
+
+"""
+执行速度很慢
+"""
+def get_user_projects():
+    users = gl.users.list(active=True, all=True)  # 拿到所有用户
+    projects = gl.projects.list(all=True)  # 拿到所有项目
+    groups = gl.groups.list(all=True)  # 拿到所有项目
+    u = [user.name for user in users]  # 生成用户列表
+    for i in u:  # 只包含除组以外个人加入的项目
+        name_dict = defaultdict(list)
+        for project in projects:
+            # print(project.id, project.name)
+            members = project.members.list()  # 项目下的成员列表，非继承，要继承父项目人员设置为project.members.list(all=True)
+            a = [me.name for me in members]
+            if i in tuple(a):
+                name_dict[i].append(project.path_with_namespace)  # 生成以用户名为key，项目名为value列表的字典
+        print(name_dict)
+
+    for i in u:  # 只包含人所在的组
+        name_dict = defaultdict(list)
+        for group in groups:
+            # print(project.id, project.name)
+            members = group.members.list()
+            a = [me.name for me in members]
+            if i in tuple(a):
+                name_dict[i].append(group.full_path)  # 拿到用户拥有的所有组
+        print(name_dict)
+def create_user():
+    data={
+        "username":"chenxueying2",
+        "name":"chenxueying2",
+        "email":"chenxueying2@zy.com",
+        "provider":"ldapmain",
+        "extern_uid":"cn=chenxueying2,ou=persons,dc=pub,dc=org",
+        "reset_password":"true",
+        "skip_confirmation":"true"
+    }
+    create = gl.users.create(data)
+    print(create)
+
 
 def data():
     """
@@ -107,4 +173,9 @@ def csv(csvName):
 
 
 if __name__ == "__main__":
-    csv("./gitlab.csv")
+    # csv("./gitlab.csv")
+    # create_user()
+    # get_user()
+    # get_projects()
+    df = pd.DataFrame(get_user())
+    df.to_csv("users.csv", index=False, encoding="utf_8_sig")
